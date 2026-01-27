@@ -1,0 +1,10 @@
+{
+  "service": "java-app",
+  "event": "Does not exist",
+  "description": "Process 'java-app' is not running on instance i-1234567890abcdef0",
+  "action": "alert",
+  "timestamp": "2025-10-16T14:30:00Z",
+  "instance_ip": "10.0.1.50",
+  "instance_id": "i-1234567890abcdef0",
+  "host": "ip-10-0-1-50.ec2.internal"
+}

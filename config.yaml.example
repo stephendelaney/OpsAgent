@@ -1,0 +1,181 @@
+# OpsAgent Configuration - Simplified Architecture
+#
+# This agent focuses on diagnostic data collection and LLM-powered analysis.
+# Recovery is OPTIONAL - ops team makes restart decisions by default.
+
+# AWS Configuration
+aws:
+  region: "us-east-1"
+  ssm_enabled: true  # Use AWS Systems Manager for secure connections
+  secrets_manager:
+    enabled: true
+    ssh_key_secret: "ops-agent/ssh-key"
+    api_keys_secret: "ops-agent/api-keys"
+
+# EC2 Instance Configuration
+ec2:
+  connection_timeout: 30
+  command_timeout: 300
+  ssh:
+    port: 22
+    username: "ec2-user"
+    key_path: "/path/to/ssh/key.pem"  # Override by AWS Secrets Manager if enabled
+
+# EFS Configuration
+efs:
+  mount_point: "/mnt/efs"
+  logs_path: "/mnt/efs/logs"
+  heap_dumps_path: "/mnt/efs/heap-dumps"
+  max_log_size_mb: 500  # Maximum size of logs to collect
+  max_heap_dump_size_mb: 2048
+  collection_timeout: 600  # seconds
+
+# Java Node Configuration
+java_node:
+  restart_script: "/opt/java-app/bin/restart.sh"
+  startup_script: "/opt/java-app/bin/start.sh"
+  shutdown_script: "/opt/java-app/bin/stop.sh"
+  health_check_url: "http://localhost:8080/health"
+  health_check_timeout: 300  # seconds
+  health_check_interval: 10  # seconds
+  process_name: "java"
+  expected_port: 8080
+
+# Log Collection Configuration
+log_collection:
+  patterns:
+    - "*.log"
+    - "catalina.out"
+    - "gc.log*"
+    - "application*.log"
+    - "error*.log"
+  exclude_patterns:
+    - "*.gz"
+    - "*.zip"
+  max_age_days: 7
+  include_system_logs: true
+  system_log_paths:
+    - "/var/log/messages"
+    - "/var/log/syslog"
+    - "/var/log/kern.log"
+
+# Heap Dump Configuration
+heap_dump_collection:
+  patterns:
+    - "*.hprof"
+    - "java_pid*.dump"
+  max_files: 3  # Collect only the most recent dumps
+  analyze_with_jhat: false  # Run jhat analysis locally
+
+# Metrics Collection Configuration
+metrics:
+  collection_interval: 60  # seconds
+  history_duration: 3600  # Collect last hour of metrics
+  cloudwatch:
+    enabled: true
+    namespace: "JavaNode/Monitoring"
+    metrics:
+      - "CPUUtilization"
+      - "MemoryUtilization"
+      - "DiskReadOps"
+      - "DiskWriteOps"
+      - "NetworkIn"
+      - "NetworkOut"
+
+# LLM Configuration
+llm:
+  provider: "anthropic"  # Options: anthropic, openai
+  anthropic:
+    model: "claude-sonnet-4-5-20250929"
+    api_key_env: "ANTHROPIC_API_KEY"  # Or use AWS Secrets Manager
+    max_tokens: 16000
+    temperature: 0.3
+  openai:
+    model: "gpt-4"
+    api_key_env: "OPENAI_API_KEY"
+    max_tokens: 8000
+    temperature: 0.3
+
+  # Analysis prompts
+  prompts:
+    log_analysis: |
+      Analyze the following Java application logs and identify:
+      1. Error patterns and stack traces
+      2. Memory issues (OOM, memory leaks)
+      3. Performance bottlenecks
+      4. Thread deadlocks or contention
+      5. External service failures
+      Provide a root cause analysis.
+
+    heap_dump_analysis: |
+      Analyze this Java heap dump summary and identify:
+      1. Memory leaks (objects not being garbage collected)
+      2. Large object allocations
+      3. Suspicious object retention patterns
+      4. Class loader issues
+      Provide recommendations for memory optimization.
+
+# Alert Handler Configuration
+alert_handler:
+  monit:
+    webhook_port: 8000
+    webhook_path: "/monit-webhook"
+    authentication: true
+    auth_token_env: "MONIT_AUTH_TOKEN"
+
+  alert_filters:
+    service_types:
+      - "process"
+      - "system"
+    event_types:
+      - "Does not exist"
+      - "Failed"
+      - "Timeout"
+
+# Notification Configuration
+notifications:
+  slack:
+    enabled: true
+    webhook_url_env: "SLACK_WEBHOOK_URL"
+    channel: "#ops-alerts"
+    mention_on_failure: "@oncall"
+
+  pagerduty:
+    enabled: false
+    integration_key_env: "PAGERDUTY_INTEGRATION_KEY"
+    severity: "error"
+
+  email:
+    enabled: false
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+    from_address: "ops-agent@example.com"
+    to_addresses:
+      - "ops-team@example.com"
+
+# Retry Configuration
+retry:
+  max_attempts: 3
+  initial_delay: 5  # seconds
+  max_delay: 60
+  exponential_backoff: true
+  backoff_multiplier: 2
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "json"  # json or text
+  file: "/var/log/ops-agent/ops-agent.log"
+  max_size_mb: 100
+  backup_count: 5
+  console_output: true
+
+# Recovery Configuration (OPTIONAL - disabled by default)
+# Enable auto_restart only if you want the agent to automatically restart nodes.
+# By default, the agent alerts ops team who manually restarts after reviewing analysis.
+recovery:
+  auto_restart: false  # Set to true to enable automated restart
+  max_restart_attempts: 3
+  restart_delay: 30  # seconds between restart attempts
+  create_incident_report: true
+  incident_report_path: "/tmp/ops-agent-incidents"
